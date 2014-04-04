@@ -13,6 +13,8 @@ invisible_ball = {}
 player_score = 0
 enemy_score = 0
 
+pause = false
+pause_counter = 0
 
 -- reset all positions
 function reset_everything()
@@ -42,6 +44,10 @@ function reset_everything()
 
   ball.velocity.x = -math.cos(angle) * ball.speed
   ball.velocity.y = math.sin(angle) * ball.speed
+
+  -- hang for one second
+  pause = true
+  pause_counter = 30
 end
 
 
@@ -85,6 +91,8 @@ function love.load()
   love.graphics.setFont(font)
 
   tink = love.audio.newSource("sfx/tink.wav")
+  point = love.audio.newSource("sfx/point.wav")
+  enemy_point = love.audio.newSource("sfx/enemy_point.wav")
 end
 
 
@@ -108,6 +116,18 @@ end
 
 
 function love.update(dt)
+
+  -- hang if game pause true (used for pause after reset)
+  if pause == true then
+    pause_counter = pause_counter - 1
+    
+    if pause_counter == 0 then
+      pause = false
+    end
+
+    return 0 -- exit function
+  end
+
   if love.keyboard.isDown("up") then
     player_paddle.y = player_paddle.y - (paddle.speed * dt)
   end
@@ -151,6 +171,7 @@ function love.update(dt)
   ball.x = ball.x + (ball.velocity.x * dt) 
   ball.y = ball.y + (ball.velocity.y * dt) 
 
+
   invisible_ball.x = invisible_ball.x + (invisible_ball.velocity.x * dt)
   invisible_ball.y = invisible_ball.y + (invisible_ball.velocity.y * dt)
   
@@ -163,7 +184,17 @@ function love.update(dt)
  
     ball.x = player_paddle.x + paddle.width
 
+    -- reflect ball
     ball.velocity.x = -ball.velocity.x
+
+    -- allow player to add spin to ball
+    if love.keyboard.isDown("up") then
+      ball.velocity.y = ball.velocity.y - 100
+    end
+
+    if love.keyboard.isDown("down") then
+      ball.velocity.y = ball.velocity.y + 100
+    end
 
     -- play tink sound
     love.audio.play(tink)
@@ -171,8 +202,8 @@ function love.update(dt)
     -- spawn invisible ball that the enemy will follow
     invisible_ball.x = ball.x
     invisible_ball.y = ball.y
-    invisible_ball.velocity.x = ball.velocity.x * 1.2
-    invisible_ball.velocity.y = ball.velocity.y * 1.2
+    invisible_ball.velocity.x = ball.velocity.x * 1.4
+    invisible_ball.velocity.y = ball.velocity.y * 1.4
   end
 
   -- hitting left side of enemy paddle
@@ -184,6 +215,10 @@ function love.update(dt)
 
     ball.velocity.x = -ball.velocity.x
 
+    -- kill invisible ball velocity
+    invisible_ball.velocity.x = 0
+    invisible_ball.velocity.y = 0
+ 
     -- play tink sound
     love.audio.play(tink)
   end
@@ -191,29 +226,39 @@ function love.update(dt)
   -- ball hitting ceiling or floor
   if ball.y < 0 or (ball.y + ball.height) > love.graphics.getHeight() then
     ball.velocity.y = -ball.velocity.y
+    
+    love.audio.play(tink)
   end
 
+  -- invisible ball hitting ceiling or floor
   if invisible_ball.y < 0 or (invisible_ball.y + ball.height) > love.graphics.getHeight() then
     invisible_ball.velocity.y = -invisible_ball.velocity.y
   end
 
-  -- enemy ai
-  if invisible_ball.y < enemy_paddle.y then
-    enemy_paddle.y = enemy_paddle.y - (paddle.speed * dt)
-  end
 
-  if invisible_ball.y > enemy_paddle.y + paddle.height then
-    enemy_paddle.y = enemy_paddle.y + (paddle.speed * dt)
+  -- enemy ai, only follow invisible ball if it's to the left of enemy
+  if invisible_ball.x + ball.width < enemy_paddle.x then
+    if invisible_ball.y < enemy_paddle.y + (paddle.height / 2) then
+      enemy_paddle.y = enemy_paddle.y - (paddle.speed * dt)
+    end
+
+    if invisible_ball.y > enemy_paddle.y + (paddle.height / 2) then
+      enemy_paddle.y = enemy_paddle.y + (paddle.speed * dt)
+    end
   end
 
 
   if ball.x <= 0 then
     enemy_score = enemy_score + 1
+    love.audio.play(enemy_point)
+
     reset_everything()
   end
 
   if ball.x + ball.width >= love.graphics.getWidth() then
     player_score = player_score + 1
+    love.audio.play(point)
+
     reset_everything()
   end
 
